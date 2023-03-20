@@ -1,0 +1,97 @@
+*clownshow.nvim*
+
+Live Jest test results and diagnostics directly in your buffer
+
+==============================================================================
+							  *clownshow-commands*
+COMMANDS
+
+Run Jest watch on the current buffer.
+Test results will update on save or when dependent files are updated.
+>
+  :JestWatch
+<
+
+Stop Jest watch on the current buffer.
+This will happen automatically on a `BufDelete` event.
+>
+  :JestWatchStop
+<
+
+==============================================================================
+							 *clownshow-functions*
+FUNCTIONS
+
+							     *clownshow.setup*
+clownshow.setup({opts}) ~
+
+Configures clownshow with the provided {opts}. Configuration overrides the
+default configuration. see |clownshow-default-configuration|
+
+    Parameters: ~
+      - {opts}:	see |clownshow-configuration|
+
+						       *clownshow.set_options*
+clownshow.set_options({opts}) ~
+
+Updates the clownshow configuration with the provided {opts}. Configuration
+overrides the configuration provided in |clownshow.setup|
+
+    Parameters: ~
+      - {opts}:	see |clownshow-configuration|
+
+
+==============================================================================
+						     *clownshow-configuration*
+CONFIGURATION
+
+- `mode`:	<string> mark display mode, either 'inline' or 'above'
+		- 'inline' places marks inline with test definition
+		- 'above' places marks in a virtual line above test definition
+- `show_icon`:	<boolean> show or hide the 'icon' for marks
+- `show_text`:	<boolean> show or hide the 'text' for marks
+- `passed`:	<table> configuration for 'passed' test marks
+		see |clownshow-mark-configuration|
+- `failed`:	<table> configuration for 'failed' test marks
+		see |clownshow-mark-configuration|
+- `skipped`:	<table> configuration for 'skipped' test marks
+		see |clownshow-mark-configuration|
+- `loading`:	<table> configuration for 'loading' test marks
+		see |clownshow-mark-configuration|
+		
+						*clownshow-mark-configuration*
+- `icon`:	<string> display an icon
+- `text`:	<string> display text
+- `hl_group`:	<string> highlight group
+
+					     *clownshow-default-configuration*
+>
+  {
+    mode = "inline",
+    show_icon = true,
+    show_text = false,
+    passed = {
+      icon = "✓",
+      text = "Passed",
+      hl_group = "LspDiagnosticsInformation"
+    },
+    failed = {
+      icon = "✗",
+      text = "Failed",
+      hl_group = "LspDiagnosticsError"
+    },
+    skipped = {
+      icon = "⏭",
+      text = "Skipped",
+      hl_group = "LspDiagnosticsWarning"
+    },
+    loading = {
+      icon = "",
+      text = "Loading...",
+      hl_group = "LspDiagnosticsWarning"
+    }
+  }
+<
+
+
+vim:tw=78:ts=8:expandtab:noet:ft=help:norl:

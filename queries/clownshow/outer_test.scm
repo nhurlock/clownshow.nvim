@@ -1,0 +1,6 @@
+((identifier)         @test           (#match?  @test           "^(it|test)$"))
+((member_expression)  @test_alt       (#match?  @test_alt       "^(it.failing|test.failing|it.concurrent|test.concurrent)$"))
+((identifier)         @test_only      (#eq?     @test_only      "fit"))
+((member_expression)  @test_only_alt  (#match?  @test_only_alt  "^(it.only|test.only|it.only.failing|fit.failing|test.only.failing)$"))
+((identifier)         @test_skip      (#match?  @test_skip      "^(xit|xtest)$"))
+((member_expression)  @test_skip_alt  (#match?  @test_skip_alt  "^(it.skip|xit.failing|it.skip.failing|test.skip|xtest.failing|test.skip.failing)$"))
