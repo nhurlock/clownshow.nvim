@@ -1,6 +1,6 @@
-local M = {}
-
 local ts_utils = require("nvim-treesitter.ts_utils")
+
+local M = {}
 
 local default_options = {
   mode = "inline",
@@ -290,7 +290,6 @@ local function attach_to_buffer(bufnr)
 
   local function create_diagnostic(identifier, message)
     local message_lines = vim.split(message, "\n", false)
-    local found_err = false
     local err_message = {}
     local err_line
     local err_col
@@ -299,28 +298,27 @@ local function attach_to_buffer(bufnr)
     -- set the error location to the specific reference, trim remaining trace
     -- remaining trace will be jest-internal
     for _, message_line in ipairs(message_lines) do
+      local match_line
       if message_line:match(job_info.test_file_name) then
         for match in string.gmatch(message_line, "at .*" .. job_info.test_file_name .. ":([0-9]+:[0-9]+)") do
           local match_split = vim.split(match, ":")
-          local match_line = tonumber(match_split[1]) - 1
+          match_line = tonumber(match_split[1]) - 1
 
           if match_line >= identifier.line and match_line <= identifier.endline then
             err_line = match_line
             err_col = tonumber(match_split[2]) - 1
             break
           end
-
-          if not err_line and err_line ~= match_line then
-            found_err = true
-            -- last line was the error, pop off the last line
-            table.remove(err_message)
-            break
-          end
         end
-        if found_err then break end
+      end
+      if err_line and err_line ~= match_line then
+        -- last line was the error, pop off the last line
+        table.remove(err_message)
+        break
       end
       table.insert(err_message, message_line)
     end
+
     table.insert(state.diagnostics, {
       bufnr = bufnr,
       lnum = err_line or identifier.line,
