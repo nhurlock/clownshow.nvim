@@ -1,6 +1,8 @@
 # clownshow.nvim
 [Neovim](https://github.com/neovim/neovim) plugin to display live [Jest](https://github.com/facebook/jest) test results and diagnostics directly in your buffer
 
+![clownshow.nvim](https://user-images.githubusercontent.com/9725449/226509636-74f93b20-e7fd-4e34-91b5-45c3975c0425.gif)
+
 ## Usage
 - `:JestWatch` - starts Jest in watch mode for the current buffer
   - updates on save
