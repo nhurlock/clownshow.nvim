@@ -288,6 +288,15 @@ local function attach_to_buffer(bufnr)
     )
   end
 
+  local function get_stack_location(line)
+    if line and line:match(job_info.test_file_name) then
+      for match in string.gmatch(line, "at .*" .. job_info.test_file_name .. ":([0-9]+:[0-9]+)") do
+        local match_split = vim.split(match, ":")
+        return { tonumber(match_split[1]) - 1, tonumber(match_split[2]) - 1 }
+      end
+    end
+  end
+
   local function create_diagnostic(identifier, message)
     local message_lines = vim.split(message, "\n", false)
     local err_message = {}
@@ -298,17 +307,14 @@ local function attach_to_buffer(bufnr)
     -- set the error location to the specific reference, trim remaining trace
     -- remaining trace will be jest-internal
     for _, message_line in ipairs(message_lines) do
+      local stack_location = get_stack_location(message_line)
       local match_line
-      if message_line:match(job_info.test_file_name) then
-        for match in string.gmatch(message_line, "at .*" .. job_info.test_file_name .. ":([0-9]+:[0-9]+)") do
-          local match_split = vim.split(match, ":")
-          match_line = tonumber(match_split[1]) - 1
+      if stack_location then
+        match_line = stack_location[1]
 
-          if match_line >= identifier.line and match_line <= identifier.endline then
-            err_line = match_line
-            err_col = tonumber(match_split[2]) - 1
-            break
-          end
+        if match_line >= identifier.line and match_line <= identifier.endline then
+          err_line = match_line
+          err_col = stack_location[2]
         end
       end
       if err_line and err_line ~= match_line then
@@ -378,6 +384,31 @@ local function attach_to_buffer(bufnr)
     return get_identifier(identifier.parent)
   end
 
+  local function get_result_identifier(assertion)
+    local valid_location, location = pcall(function() return assertion.location.line - 1 end)
+    if valid_location then
+      local identifier = get_identifier(location)
+      if identifier then
+        return identifier
+      end
+    end
+
+    -- in the event that no identifier can be found
+    -- attempt to find one through the stack trace
+    if assertion.failureMessages then
+      local message_lines = vim.split(assertion.failureMessages[1], "\n", false)
+      for _, message_line in ipairs(message_lines) do
+        local stack_location = get_stack_location(message_line)
+        if stack_location then
+          local identifier = get_identifier(stack_location[1])
+          if identifier then
+            return identifier
+          end
+        end
+      end
+    end
+  end
+
   local function passed_mark(identifier)
     identifier.status = "passed"
     create_mark(identifier)
@@ -429,7 +460,7 @@ local function attach_to_buffer(bufnr)
     for _, result in ipairs(results) do
       message = result.message
       for _, assertion in ipairs(result.assertionResults) do
-        local identifier = get_identifier(assertion.location.line - 1)
+        local identifier = get_result_identifier(assertion)
         if identifier then
           message = nil
           if assertion.status == "failed" then
