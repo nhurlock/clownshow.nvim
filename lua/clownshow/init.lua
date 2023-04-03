@@ -17,12 +17,12 @@ local default_options = {
     hl_group = "LspDiagnosticsError"
   },
   skipped = {
-    icon = "⏭",
+    icon = "⭘",
     text = "Skipped",
     hl_group = "LspDiagnosticsWarning"
   },
   loading = {
-    icon = "",
+    icon = "●",
     text = "Loading...",
     hl_group = "LspDiagnosticsWarning"
   }

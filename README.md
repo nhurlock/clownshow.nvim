@@ -50,12 +50,12 @@ require("clownshow").setup({
     hl_group = "LspDiagnosticsError"
   },
   skipped = {
-    icon = "⏭",
+    icon = "⭘",
     text = "Skipped",
     hl_group = "LspDiagnosticsWarning"
   },
   loading = {
-    icon = "",
+    icon = "●",
     text = "Loading...",
     hl_group = "LspDiagnosticsWarning"
   }
