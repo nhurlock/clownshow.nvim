@@ -77,7 +77,7 @@ end
 -- only need to do this once
 local function get_filetype_query(filetype)
   if not _queries[filetype] then
-    _queries[filetype] = vim.treesitter.parse_query(filetype, _jest_query)
+    _queries[filetype] = vim.treesitter.query.parse(filetype, _jest_query)
   end
   return _queries[filetype]
 end
@@ -298,7 +298,7 @@ local function attach_to_buffer(bufnr)
   end
 
   local function create_diagnostic(identifier, message)
-    local message_lines = vim.split(message, "\n", false)
+    local message_lines = vim.split(message, "\n")
     local err_message = {}
     local err_line
     local err_col
@@ -317,12 +317,15 @@ local function attach_to_buffer(bufnr)
           err_col = stack_location[2]
         end
       end
-      if err_line and err_line ~= match_line then
-        -- last line was the error, pop off the last line
-        table.remove(err_message)
-        break
-      end
+      if err_line and err_line ~= match_line then break end
       table.insert(err_message, message_line)
+    end
+    if err_line then
+      -- last line was the error, pop off the last line and extra whitepace
+      table.remove(err_message)
+      while vim.trim(err_message[#err_message]) == "" do
+        table.remove(err_message)
+      end
     end
 
     table.insert(state.diagnostics, {
@@ -396,7 +399,7 @@ local function attach_to_buffer(bufnr)
     -- in the event that no identifier can be found
     -- attempt to find one through the stack trace
     if assertion.failureMessages then
-      local message_lines = vim.split(assertion.failureMessages[1], "\n", false)
+      local message_lines = vim.split(assertion.failureMessages[1], "\n", { trimempty = true })
       for _, message_line in ipairs(message_lines) do
         local stack_location = get_stack_location(message_line)
         if stack_location then
