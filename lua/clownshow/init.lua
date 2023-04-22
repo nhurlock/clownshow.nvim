@@ -516,7 +516,11 @@ local function attach_to_buffer(bufnr)
         if not state.init then init_marks() end
         state.init = nil
 
-        handle_results(results.testResults)
+        local test_results = {}
+        if results and results.testResults then
+          test_results = results.testResults
+        end
+        handle_results(test_results)
       end,
       on_exit = function()
         reset_jest(bufnr)
