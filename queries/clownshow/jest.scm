@@ -17,7 +17,7 @@
     arguments: (arguments ([
       (arrow_function
         body: (statement_block TEST_EXPRESSION))
-      (function
+      (function_expression
         body: (statement_block TEST_EXPRESSION))
     ])) @args
   ))
