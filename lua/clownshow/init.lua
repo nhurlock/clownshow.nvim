@@ -6,6 +6,13 @@ local default_options = {
   mode = "inline",
   show_icon = true,
   show_text = false,
+  jest_command = function(opts)
+    local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
+    return vim.fn.fnamemodify(cmd_path, ':p')
+  end,
+  project_root = function()
+    return vim.fn.fnamemodify(".", ":p")
+  end,
   passed = {
     icon = "✓",
     text = "Passed",
@@ -35,7 +42,8 @@ local _group = vim.api.nvim_create_augroup(_source, { clear = true })
 local _queries = {}
 local _active = {}
 local _jest_query
-local _jest_args = { "--watch", "--silent", "--forceExit", "--json", "--testLocationInResults", "--no-colors" }
+local _jest_args = { "--watch", "--silent", "--forceExit", "--json", "--testLocationInResults", "--no-colors",
+  "--coverage=false" }
 
 local function merge_tables(t1, t2)
   return vim.tbl_deep_extend("force", t1, t2)
@@ -261,14 +269,18 @@ local function reset_jest(bufnr)
 end
 
 local function get_job_info(bufnr)
-  local test_file_path = vim.api.nvim_buf_get_name(bufnr)
-  local jest_bin = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(test_file_path, ":p:h") .. ";")
-  if jest_bin == "" then return nil end
-  local jest_bin_dir = vim.fn.fnamemodify(jest_bin, ":p:h")
+  local path = vim.api.nvim_buf_get_name(bufnr)
+
+  local project_root = _config.project_root({ bufnr = bufnr, path = path })
+  if not project_root or project_root == "" then return nil end
+
+  local jest_cmd = _config.jest_command({ bufnr = bufnr, path = path, root = project_root })
+  if not jest_cmd or jest_cmd == "" then return nil end
+
   return {
-    test_file_name = vim.fn.fnamemodify(test_file_path, ":t"),
-    project_root = jest_bin_dir:gsub("/node_modules/.bin", ""),
-    command = jest_bin .. " " .. table.concat(_jest_args, " ") .. " " .. test_file_path
+    test_file_name = vim.fn.fnamemodify(path, ":t"),
+    project_root = project_root,
+    command = jest_cmd .. " " .. table.concat(_jest_args, " ") .. " " .. path
   }
 end
 
@@ -504,11 +516,22 @@ local function attach_to_buffer(bufnr)
       on_stdout = function(_, data)
         if not state or not data then return nil end
 
+        -- process only the jest result output
+        local results = nil
+        local complete = false
+        for _, line in ipairs(data) do
+          if (curr_data ~= "" or (vim.startswith(line, '{') and string.match(line, "numTotalTests") ~= nil)) then
+            curr_data = curr_data .. line
+            local status_ok, res = pcall(vim.json.decode, curr_data)
+            if status_ok then
+              results = res
+              break
+            end
+          end
+        end
+
         -- concat stdout data until we can process the data as json
-        local results_output = table.concat(data, "\n")
-        curr_data = curr_data .. results_output
-        local status_ok, results = pcall(vim.json.decode, curr_data)
-        if not status_ok then return nil end
+        if not results then return nil end
         curr_data = ""
 
         -- if init has not yet been run, force a run before handling results
@@ -553,6 +576,8 @@ end
 local function validate_options(opts)
   vim.validate({
     mode = { opts.mode, function(mode) return mode == "inline" or mode == "above" end, "'above' or 'inline'" },
+    jest_command = { opts.jest_command, { "function" } },
+    project_root = { opts.project_root, { "function" } },
     show_icon = { opts.show_icon, "boolean" },
     show_text = { opts.show_text, "boolean" },
     passed = { opts.passed, validate_status_options },
