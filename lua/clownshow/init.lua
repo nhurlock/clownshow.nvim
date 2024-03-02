@@ -1,66 +1,58 @@
 local ts_utils = require("nvim-treesitter.ts_utils")
+local utils = require("clownshow.utils")
+
+---@alias ClownshowIdentifierType "test"|"describe"|"root"
+
+---@alias ClownshowIdentifierStatus "pending"|"loading"|"passed"|"failed"
+
+---@class ClownshowIdentifier
+---@field line number
+---@field col number
+---@field endline? number
+---@field type? ClownshowIdentifierType
+---@field only? boolean
+---@field status? ClownshowIdentifierStatus
+---@field mark? number
+---@field has_only? boolean
+---@field parent? number
+---@field above? ClownshowIdentifier
+
+---@class ClownshowState
+---@field init? boolean
+---@field job? number
+---@field autocmd number[]
+---@field diagnostics Diagnostic[]
+---@field identifiers ClownshowIdentifier[]
+
+---@class ClownshowJestAssertion
+---@field status ClownshowIdentifierStatus
+---@field location { line: number }
+---@field failureMessages string[]
+
+---@class ClownshowJestResult
+---@field message string
+---@field assertionResults ClownshowJestAssertion[]
 
 local M = {}
 
-local default_options = {
-  mode = "inline",
-  show_icon = true,
-  show_text = false,
-  jest_command = function(opts)
-    local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
-    return vim.fn.fnamemodify(cmd_path, ':p')
-  end,
-  project_root = function()
-    return vim.fn.fnamemodify(".", ":p")
-  end,
-  passed = {
-    icon = "✓",
-    text = "Passed",
-    hl_group = "LspDiagnosticsInformation"
-  },
-  failed = {
-    icon = "✗",
-    text = "Failed",
-    hl_group = "LspDiagnosticsError"
-  },
-  skipped = {
-    icon = "⭘",
-    text = "Skipped",
-    hl_group = "LspDiagnosticsWarning"
-  },
-  loading = {
-    icon = "●",
-    text = "Loading...",
-    hl_group = "LspDiagnosticsWarning"
-  }
-}
-
-local _config = default_options
+local _config = require("clownshow.defaults")
 local _source = "clownshow"
 local _ns = vim.api.nvim_create_namespace(_source)
 local _group = vim.api.nvim_create_augroup(_source, { clear = true })
+---@type table<string, Query>
 local _queries = {}
+---@type table<number, ClownshowState>
 local _active = {}
+---@type string|nil
 local _jest_query
 local _jest_args = { "--watch", "--silent", "--forceExit", "--json", "--testLocationInResults", "--no-colors",
   "--coverage=false" }
-
-local function merge_tables(t1, t2)
-  return vim.tbl_deep_extend("force", t1, t2)
-end
-
-local function get_file(filename)
-  local file = assert(io.open(filename, "rb"))
-  local content = file:read("*all")
-  file:close()
-  return content
-end
 
 local function set_jest_query()
   local jest_queries = {}
   local jest_query_files = vim.api.nvim_get_runtime_file("queries/clownshow/*.scm", true)
   for _, jest_query_file in ipairs(jest_query_files) do
-    jest_queries[vim.fn.fnamemodify(jest_query_file, ":t:r")] = get_file(jest_query_file)
+    jest_queries[vim.fn.fnamemodify(jest_query_file, ":t:r")] = utils.get_file(jest_query_file)
   end
   _jest_query = jest_queries["jest"]
       :gsub("TEST_EXPRESSION", jest_queries["test_expression"])
@@ -68,14 +60,15 @@ local function set_jest_query()
       :gsub("INNER_TEST", jest_queries["inner_test"])
 end
 
-local function get_filetype(bufnr)
-  return vim.bo[bufnr].filetype
-end
-
+---@param bufnr number
+---@return ClownshowState|nil
 local function get_state(bufnr)
   return _active[bufnr]
 end
 
+---@param bufnr number
+---@param state ClownshowState
+---@return ClownshowState|nil
 local function set_state(bufnr, state)
   _active[bufnr] = state
   return get_state(bufnr)
@@ -83,6 +76,8 @@ end
 
 -- generate query for given filetype if one does not already exist
 -- only need to do this once
+---@param filetype string
+---@return Query
 local function get_filetype_query(filetype)
   if not _queries[filetype] then
     _queries[filetype] = vim.treesitter.query.parse(filetype, _jest_query)
@@ -90,20 +85,27 @@ local function get_filetype_query(filetype)
   return _queries[filetype]
 end
 
+---@type fun(bufnr: number): table<number, ClownshowIdentifier>
 local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
-  local filetype = get_filetype(bufnr)
+  local filetype = utils.get_filetype(bufnr)
   local parser = vim.treesitter.get_parser(bufnr, filetype, {})
   local root = parser:parse()[1]:root()
   local query = get_filetype_query(filetype)
+  ---@type table<number, ClownshowIdentifier>
   local identifier_info = {}
   local root_has_only = false
+  ---@type number|nil
   local curr_parent
+  ---@type ClownshowIdentifier|nil
   local holding
+  ---@type table<ClownshowIdentifierType, ClownshowIdentifier>
   local each = {}
 
   -- "test" would be any test
   -- "describe" would be any inner/nested describe block
   -- "root" would be any outer/non-nested describe block
+  ---@param name string
+  ---@return ClownshowIdentifierType
   local function get_type(name)
     if string.match(name, "^test") then
       return "test"
@@ -116,6 +118,8 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
 
   -- initial "loading" state always set unless test is skipped
   -- skipped tests in jest are marked as "pending"
+  ---@param name string
+  ---@return ClownshowIdentifierStatus
   local function get_status(name)
     if string.match(name, "skip") then
       return "pending"
@@ -135,6 +139,7 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
     end
   end
 
+  ---@param props ClownshowIdentifier
   local function add_identifier(props)
     if props.type ~= "root" and each["root"] then
       -- when "root" is an "each" (tables) in jest, we need to wait for the root's arguments before applying parent logic to children
@@ -162,6 +167,8 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
     end
   end
 
+  ---@param props ClownshowIdentifier
+  ---@param curr_each ClownshowIdentifier|nil
   local function add_each(props, curr_each)
     if identifier_info[props.line] then
       identifier_info[props.line].endline = props.endline
@@ -171,7 +178,7 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
 
     -- "props" will be of type "args" which will not contain accurate type, only, and status info
     -- "args" will have the correct line and col info, set "above" to the "each"
-    add_identifier(merge_tables(props, {
+    add_identifier(utils.merge_tables(props, {
       type = curr_each.type,
       endline = curr_each.endline,
       only = curr_each.only,
@@ -180,6 +187,7 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
     }))
   end
 
+  ---@param props ClownshowIdentifier
   local function set_each(props)
     each[props.type] = props
   end
@@ -201,6 +209,7 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
     for id, node in pairs(match) do
       local name = query.captures[id]
       local range = { node:range() }
+      ---@type ClownshowIdentifier
       local props = {
         type = get_type(name),
         line = range[1],
@@ -239,10 +248,12 @@ local get_identifiers = ts_utils.memoize_by_buf_tick(function(bufnr)
   return identifier_info
 end)
 
+---@param bufnr number
 local function reset_marks(bufnr)
   vim.api.nvim_buf_clear_namespace(bufnr, _ns, 0, -1)
 end
 
+---@param bufnr number
 local function reset_diagnostics(bufnr)
   vim.diagnostic.reset(_ns, bufnr)
   local state = get_state(bufnr)
@@ -250,6 +261,7 @@ local function reset_diagnostics(bufnr)
   state.diagnostics = {}
 end
 
+---@param bufnr number
 local function reset_commands(bufnr)
   local state = get_state(bufnr)
   if not state then return nil end
@@ -260,6 +272,7 @@ local function reset_commands(bufnr)
   vim.api.nvim_buf_del_user_command(bufnr, "JestWatchStop")
 end
 
+---@param bufnr number
 local function reset_jest(bufnr)
   if not _active[bufnr] then return nil end
   reset_marks(bufnr)
@@ -268,6 +281,8 @@ local function reset_jest(bufnr)
   _active[bufnr] = nil
 end
 
+---@param bufnr number
+---@return { test_file_name: string, project_root: string, command: string }|nil
 local function get_job_info(bufnr)
   local path = vim.api.nvim_buf_get_name(bufnr)
 
@@ -284,11 +299,12 @@ local function get_job_info(bufnr)
   }
 end
 
+---@param bufnr number
 local function attach_to_buffer(bufnr)
   if get_state(bufnr) then return nil end
   local state = set_state(bufnr, { diagnostics = {}, identifiers = {}, autocmd = {} })
   local job_info = get_job_info(bufnr)
-  if not job_info then return nil end
+  if not state or not job_info then return nil end
 
   local function create_autocmd(event, callback)
     table.insert(state.autocmd,
@@ -300,6 +316,8 @@ local function attach_to_buffer(bufnr)
     )
   end
 
+  ---@param line string
+  ---@return number[]|nil
   local function get_stack_location(line)
     if line and line:match(job_info.test_file_name) then
       for match in string.gmatch(line, "at .*" .. job_info.test_file_name .. ":([0-9]+:[0-9]+)") do
@@ -309,10 +327,15 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param identifier ClownshowIdentifier
+  ---@param message string
   local function create_diagnostic(identifier, message)
     local message_lines = vim.split(message, "\n")
+    ---@type string[]
     local err_message = {}
+    ---@type number|nil
     local err_line
+    ---@type number|nil
     local err_col
 
     -- find a stack trace line matching the test file and identifier scope
@@ -320,6 +343,7 @@ local function attach_to_buffer(bufnr)
     -- remaining trace will be jest-internal
     for _, message_line in ipairs(message_lines) do
       local stack_location = get_stack_location(message_line)
+      ---@type number|nil
       local match_line
       if stack_location then
         match_line = stack_location[1]
@@ -351,9 +375,11 @@ local function attach_to_buffer(bufnr)
     })
   end
 
+  ---@param identifier ClownshowIdentifier
   local function create_mark(identifier)
     local line = identifier.line
     local col = identifier.col
+    ---@type ClownshowStatusOptions
     local mark_options = _config[identifier.status] or _config["skipped"]
     local mark_text = ""
 
@@ -391,14 +417,20 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param line number
+  ---@return ClownshowIdentifier|nil
   local function get_identifier(line)
     return state.identifiers[line]
   end
 
+  ---@param identifier ClownshowIdentifier
+  ---@return ClownshowIdentifier|nil
   local function get_parent(identifier)
     return get_identifier(identifier.parent)
   end
 
+  ---@param assertion ClownshowJestAssertion
+  ---@return ClownshowIdentifier|nil
   local function get_result_identifier(assertion)
     local valid_location, location = pcall(function() return assertion.location.line - 1 end)
     if valid_location then
@@ -424,6 +456,7 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param identifier ClownshowIdentifier
   local function passed_mark(identifier)
     identifier.status = "passed"
     create_mark(identifier)
@@ -434,6 +467,7 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param identifier ClownshowIdentifier
   local function failed_mark(identifier)
     identifier.status = "failed"
     create_mark(identifier)
@@ -444,11 +478,13 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param identifier ClownshowIdentifier
   local function loading_mark(identifier)
     identifier.status = "loading"
     create_mark(identifier)
   end
 
+  ---@param identifier ClownshowIdentifier
   local function skipped_mark(identifier)
     identifier.status = "pending"
     create_mark(identifier)
@@ -470,7 +506,9 @@ local function attach_to_buffer(bufnr)
     end
   end
 
+  ---@param results ClownshowJestResult[]
   local function handle_results(results)
+    ---@type string|nil
     local message
     for _, result in ipairs(results) do
       message = result.message
@@ -493,7 +531,7 @@ local function attach_to_buffer(bufnr)
     -- if a message still exists, there was a file-level error
     -- caused the test suite to not run
     if message and message ~= "" then
-      create_diagnostic({ line = 0, endline = 0 }, message)
+      create_diagnostic({ line = 0, col = 0, endline = 0 }, message)
     end
 
     -- any identifiers that do not have a processed status get set to skipped
@@ -513,12 +551,15 @@ local function attach_to_buffer(bufnr)
     state.job = vim.fn.jobstart(job_info.command, {
       cwd = job_info.project_root,
       stdout_buffered = false,
+      ---@param _ any
+      ---@param data string[]|nil
       on_stdout = function(_, data)
         if not state or not data then return nil end
 
         -- process only the jest result output
+        ---@class ClownshowJestOutput
+        ---@field testResults ClownshowJestResult[]
         local results = nil
-        local complete = false
         for _, line in ipairs(data) do
           if (curr_data ~= "" or (vim.startswith(line, '{') and string.match(line, "numTotalTests") ~= nil)) then
             curr_data = curr_data .. line
@@ -539,6 +580,7 @@ local function attach_to_buffer(bufnr)
         if not state.init then init_marks() end
         state.init = nil
 
+        ---@type ClownshowJestResult[]
         local test_results = {}
         if results and results.testResults then
           test_results = results.testResults
@@ -573,6 +615,7 @@ local function validate_status_options(status)
   return true
 end
 
+---@param opts table
 local function validate_options(opts)
   vim.validate({
     mode = { opts.mode, function(mode) return mode == "inline" or mode == "above" end, "'above' or 'inline'" },
@@ -588,18 +631,20 @@ local function validate_options(opts)
   return opts
 end
 
+---@param opts ClownshowOptions
 M.set_options = function(opts)
   if opts then
-    _config = validate_options(merge_tables(_config, opts))
+    _config = validate_options(utils.merge_tables(_config, opts))
   end
 end
 
+---@param opts ClownshowOptions
 M.setup = function(opts)
   M.set_options(opts)
 
   vim.api.nvim_create_user_command("JestWatch", function()
     local bufnr = vim.api.nvim_get_current_buf()
-    local filetype = get_filetype(bufnr)
+    local filetype = utils.get_filetype(bufnr)
 
     if filetype ~= "typescript" and filetype ~= "javascript" then return nil end
     if not _jest_query then set_jest_query() end
