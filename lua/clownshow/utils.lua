@@ -26,4 +26,10 @@ function M.get_filetype(bufnr)
   return vim.bo[bufnr].filetype
 end
 
+---@param bufnr number
+---@return boolean
+function M.is_modified(bufnr)
+  return vim.bo[bufnr].modified == true
+end
+
 return M

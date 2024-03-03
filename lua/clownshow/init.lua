@@ -25,6 +25,7 @@ local function attach_to_buffer(bufnr)
     reset_buffer(bufnr)
   end, {})
 
+  state.autocmd:create("BufModifiedSet", function() state:on_modified_set() end)
   state.autocmd:create("BufWritePost", function() state:pre_process() end)
   state.autocmd:create("BufUnload", function() reset_buffer(bufnr) end)
 

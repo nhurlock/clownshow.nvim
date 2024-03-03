@@ -1,5 +1,4 @@
 local Object = require("clownshow.object")
-local ts_utils = require("nvim-treesitter.ts_utils")
 local utils = require("clownshow.utils")
 local identifier_utils = require("clownshow.identifiers.utils")
 
@@ -149,10 +148,8 @@ end
 
 ---@return ClownshowIdentifierProps[]
 function Parser:get_identifiers()
-  return ts_utils.memoize_by_buf_tick(function()
-    self:_refresh()
-    return vim.tbl_values(self.identifier_info)
-  end)(self._bufnr)
+  self:_refresh()
+  return vim.tbl_values(self.identifier_info)
 end
 
 function Parser:reset()

@@ -6,9 +6,10 @@ local Diagnostics = require("clownshow.diagnostics")
 local Identifiers = require("clownshow.identifiers")
 local Identifier = require("clownshow.identifiers.identifier")
 local job_utils = require("clownshow.job.utils")
+local utils = require("clownshow.utils")
 
 ---@class ClownshowState
----@field _processed boolean
+---@field _invalidated boolean
 ---@field _bufnr number
 ---@field _job_info ClownshowJobInfo?
 ---@field job ClownshowJob
@@ -21,7 +22,7 @@ local State = Object("ClownshowState")
 
 ---@param bufnr number
 function State:init(bufnr)
-  self._processed = false
+  self._invalidated = true
   self._bufnr = bufnr
   self._job_info = job_utils.get_job_info(self._bufnr)
   self.job = Job(
@@ -38,6 +39,7 @@ function State:init(bufnr)
 end
 
 function State:reset()
+  self._invalidated = true
   self.job:reset()
   self.marks:reset()
   self.autocmd:reset()
@@ -45,10 +47,17 @@ function State:reset()
   self.identifiers:reset()
 end
 
+function State:on_modified_set()
+  self._invalidated = utils.is_modified(self._bufnr)
+end
+
 function State:pre_process()
+  if self._invalidated then
+    self._invalidated = false
+    self.identifiers:update()
+  end
   self.marks:reset()
   self.diagnostics:reset()
-  self.identifiers:update()
 
   -- set initial "loading" states for all identifiers that are not known to be skipped
   for _, identifier in pairs(self.identifiers:get()) do
@@ -60,8 +69,6 @@ function State:pre_process()
     -- force-apply the initial status mark
     self.marks:status(identifier, nil, true)
   end
-
-  self._processed = true
 end
 
 ---@param assertion ClownshowJestAssertion
@@ -93,10 +100,18 @@ end
 
 ---@param results ClownshowJestResult[]
 function State:_handle_results(results)
-  -- if processing has not yet been run, force a run before handling results
+  -- if processing has not yet been run, we cannot apply Jest results as there may be line mismatch
   -- this will happen when a non-test buffer triggers jest watch to rerun a test
-  if not self._processed then self:pre_process() end
-  self._processed = false
+  if self._invalidated then
+    vim.notify(
+      "[clownshow.nvim] unsaved changes to test file, Jest results paused until file is saved",
+      vim.log.levels.WARN
+    )
+    return
+  end
+  -- for a similar reason, changes triggering Jest watch updates from another buffer
+  -- require the marks, diagnostics, and identifier stats to be reset
+  self:pre_process()
 
   ---@type string?
   local message
