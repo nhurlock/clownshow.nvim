@@ -1,12 +1,14 @@
 local M = {}
 
----@generic T1: table
----@generic T2: table
----@param t1 T1
----@param t2 T2
----@return T1|T2
-function M.merge_tables(t1, t2)
-  return vim.tbl_deep_extend("force", t1, t2)
+---@param a string
+---@param b string
+---@return string
+function M.space_between(a, b)
+  if #a > 0 and #b > 0 then
+    return a .. " " .. b
+  else
+    return a .. b
+  end
 end
 
 ---@param filename string
