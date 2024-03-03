@@ -10,6 +10,7 @@ local utils = require("clownshow.utils")
 
 ---@class ClownshowState
 ---@field _invalidated boolean
+---@field _warn_notified boolean
 ---@field _bufnr number
 ---@field _job_info ClownshowJobInfo?
 ---@field job ClownshowJob
@@ -23,6 +24,7 @@ local State = Object("ClownshowState")
 ---@param bufnr number
 function State:init(bufnr)
   self._invalidated = true
+  self._warn_notified = false
   self._bufnr = bufnr
   self._job_info = job_utils.get_job_info(self._bufnr)
   self.job = Job(
@@ -40,6 +42,7 @@ end
 
 function State:reset()
   self._invalidated = true
+  self._warn_notified = false
   self.job:reset()
   self.marks:reset()
   self.autocmd:reset()
@@ -52,6 +55,7 @@ function State:on_modified_set()
 end
 
 function State:pre_process()
+  self._warn_notified = false
   if self._invalidated then
     self._invalidated = false
     self.identifiers:update()
@@ -103,10 +107,13 @@ function State:_handle_results(results)
   -- if processing has not yet been run, we cannot apply Jest results as there may be line mismatch
   -- this will happen when a non-test buffer triggers jest watch to rerun a test
   if self._invalidated then
-    vim.notify(
-      "[clownshow.nvim] unsaved changes to test file, Jest results paused until file is saved",
-      vim.log.levels.WARN
-    )
+    if not self._warn_notified then
+      vim.notify(
+        "[clownshow.nvim] unsaved changes to test file, Jest results paused until file is saved",
+        vim.log.levels.WARN
+      )
+      self._warn_notified = true
+    end
     return
   end
   -- for a similar reason, changes triggering Jest watch updates from another buffer
