@@ -12,7 +12,7 @@ Test results will update on save or when dependent files are updated.
 <
 
 Stop Jest watch on the current buffer.
-This will happen automatically on a `BufDelete` event.
+This will happen automatically on a `BufUnload` event.
 >
   :JestWatchStop
 <

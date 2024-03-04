@@ -8,13 +8,12 @@
   - updates on save
   - updates on dependent file changes
 - `:JestWatchStop` - stops Jest for the current buffer
-  - automatically stops the job on `BufDelete`
+  - automatically stops the job on `BufUnload`
 
 Multiple files can be watched at the same time, simply run the `JestWatch` command on each
 
 ## Dependencies
-- [`nvim-treesitter`](https://github.com/nvim-treesitter/nvim-treesitter)
-  - javascript / typescript parser must be installed/enabled
+- javascript / typescript treesitter parser must be installed/enabled
 
 ## Installation
 Install with your package manager:

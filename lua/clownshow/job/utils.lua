@@ -22,7 +22,7 @@ function M.get_job_info(bufnr)
   return {
     test_file_name = vim.fn.fnamemodify(path, ":t"),
     project_root = project_root,
-    command = jest_cmd .. " " .. table.concat(Config.get_jest_args(), " ") .. " " .. path
+    command = jest_cmd .. " " .. Config.jest_args .. " " .. path
   }
 end
 

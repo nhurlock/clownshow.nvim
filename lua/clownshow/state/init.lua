@@ -58,15 +58,13 @@ function State:pre_process()
   self._warn_notified = false
   if self._invalidated then
     self._invalidated = false
+    self.marks:reset()
+    self.diagnostics:reset()
     self.identifiers:update()
   end
-  self.marks:reset()
-  self.diagnostics:reset()
 
   -- set initial "loading" states for all identifiers that are not known to be skipped
   for _, identifier in pairs(self.identifiers:get()) do
-    identifier:reset_stats()
-
     if identifier.status ~= "pending" then
       identifier.status = "loading"
     end
@@ -116,9 +114,8 @@ function State:_handle_results(results)
     end
     return
   end
-  -- for a similar reason, changes triggering Jest watch updates from another buffer
-  -- require the marks, diagnostics, and identifier stats to be reset
-  self:pre_process()
+  -- clear old stats before appling new status updates
+  self.identifiers:reset_stats()
 
   ---@type string?
   local message

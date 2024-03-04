@@ -34,6 +34,12 @@ function Identifiers:create(props)
   return self.identifiers[props.line]
 end
 
+function Identifiers:reset_stats()
+  for _, identifier in pairs(self.identifiers) do
+    identifier:reset_stats()
+  end
+end
+
 function Identifiers:update()
   self:reset()
   for _, identifier in ipairs(self._parser:get_identifiers()) do

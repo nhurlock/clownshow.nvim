@@ -3,14 +3,12 @@ local Config = require("clownshow.config")
 local mark_utils = require("clownshow.marks.utils")
 
 ---@class ClownshowMarks
----@field _ns number
 ---@field _bufnr number
 ---@overload fun(bufnr: number): ClownshowMarks
 local Marks = Object("ClownshowMarks")
 
 ---@param bufnr number
 function Marks:init(bufnr)
-  self._ns = Config.ns()
   self._bufnr = bufnr
 end
 
@@ -20,7 +18,7 @@ function Marks:_from(identifier, partials)
   -- when there is nothing to render, make sure we don't have an old mark
   if #partials == 0 then
     if identifier.mark ~= nil then
-      vim.api.nvim_buf_del_extmark(self._bufnr, self._ns, identifier.mark)
+      vim.api.nvim_buf_del_extmark(self._bufnr, Config.ns, identifier.mark)
       identifier.mark = nil
     end
     return
@@ -55,14 +53,17 @@ function Marks:_from(identifier, partials)
     extmark_opts.virt_text = partials
   end
 
-  identifier.mark = vim.api.nvim_buf_set_extmark(self._bufnr, self._ns, line, col, extmark_opts)
+  identifier.mark = vim.api.nvim_buf_set_extmark(self._bufnr, Config.ns, line, col, extmark_opts)
 end
 
 ---@param identifier ClownshowIdentifier
 ---@param status? ClownshowIdentifierStatus
 ---@param force? boolean
 function Marks:status(identifier, status, force)
-  self:_from(identifier, { mark_utils.status_mark(identifier, status, force) })
+  local mark = mark_utils.status_mark(identifier, status, force)
+  if mark then
+    self:_from(identifier, { mark })
+  end
 end
 
 ---@param identifier ClownshowIdentifier
@@ -74,7 +75,7 @@ function Marks:stats(identifier)
 end
 
 function Marks:reset()
-  vim.api.nvim_buf_clear_namespace(self._bufnr, self._ns, 0, -1)
+  vim.api.nvim_buf_clear_namespace(self._bufnr, Config.ns, 0, -1)
 end
 
 return Marks

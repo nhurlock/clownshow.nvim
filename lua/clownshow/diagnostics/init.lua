@@ -6,8 +6,6 @@ local Config = require("clownshow.config")
 ---@field [2] number
 
 ---@class ClownshowDiagnostics
----@field _source string
----@field _ns number
 ---@field _bufnr number
 ---@field _file_name string
 ---@field diagnostics Diagnostic[]
@@ -17,8 +15,6 @@ local Diagnostics = Object("ClownshowDiagnostics")
 ---@param bufnr number
 ---@param file_name string
 function Diagnostics:init(bufnr, file_name)
-  self._source = Config.source()
-  self._ns = Config.ns()
   self._bufnr = bufnr
   self._file_name = file_name
   self.diagnostics = {}
@@ -80,19 +76,19 @@ function Diagnostics:create(identifier, message)
     col = err_col or 0,
     message = table.concat(err_message, "\n"),
     severity = vim.diagnostic.severity.ERROR,
-    source = self._source,
+    source = Config.source,
     user_data = {}
   }
   table.insert(self.diagnostics, diagnostic)
 end
 
 function Diagnostics:apply()
-  vim.diagnostic.set(self._ns, self._bufnr, self.diagnostics)
+  vim.diagnostic.set(Config.ns, self._bufnr, self.diagnostics)
   self.diagnostics = {}
 end
 
 function Diagnostics:reset()
-  vim.diagnostic.reset(self._ns, self._bufnr)
+  vim.diagnostic.reset(Config.ns, self._bufnr)
   self.diagnostics = {}
 end
 
