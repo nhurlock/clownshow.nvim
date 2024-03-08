@@ -5,7 +5,7 @@ local M = {}
 ---@type table<string, Query>
 local _queries = {}
 ---@type fun(): string
-local _jest_query = function()
+local function _jest_query()
   ---@type string
   local cached
   if not cached then
@@ -28,8 +28,8 @@ end
 -- "test" would be any test
 -- "describe" would be any inner/nested describe block
 -- "root" would be any outer/non-nested describe block
----@param name string
----@return ClownshowIdentifierType
+---@param name string node name
+---@return ClownshowIdentifierType type identifier type
 function M.get_type(name)
   if string.match(name, "^test") then
     return "test"
@@ -42,8 +42,8 @@ end
 
 -- initial "loading" state always set unless test is skipped
 -- skipped tests in jest are marked as "pending"
----@param name string
----@return ClownshowIdentifierStatus
+---@param name string node name
+---@return ClownshowIdentifierStatus status initial identifier status
 function M.get_initial_status(name)
   if string.match(name, "skip") then
     return "pending"
@@ -54,8 +54,8 @@ end
 
 -- generate query for given filetype if one does not already exist
 -- only need to do this once
----@param filetype string
----@return Query
+---@param filetype string file type
+---@return Query query treesitter query for the filetype
 function M.get_filetype_query(filetype)
   if not _queries[filetype] then
     _queries[filetype] = vim.treesitter.query.parse(filetype, _jest_query())

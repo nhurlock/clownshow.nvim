@@ -2,6 +2,7 @@ local Object = require("clownshow.object")
 local Job = require("clownshow.job")
 local Marks = require("clownshow.marks")
 local Autocmd = require("clownshow.autocmd")
+local Usercmd = require("clownshow.usercmd")
 local Diagnostics = require("clownshow.diagnostics")
 local Identifiers = require("clownshow.identifiers")
 local Identifier = require("clownshow.identifiers.identifier")
@@ -14,14 +15,16 @@ local utils = require("clownshow.utils")
 ---@field _bufnr number
 ---@field _job_info ClownshowJobInfo?
 ---@field job ClownshowJob
+---@field term_usercmd ClownshowUsercmd
 ---@field marks ClownshowMarks
 ---@field autocmd ClownshowAutocmd
+---@field usercmd ClownshowUsercmd
 ---@field diagnostics ClownshowDiagnostics
 ---@field identifiers ClownshowIdentifiers
 ---@overload fun(bufnr: number): ClownshowState
 local State = Object("ClownshowState")
 
----@param bufnr number
+---@param bufnr number buffer to track state for
 function State:init(bufnr)
   self._invalidated = true
   self._warn_notified = false
@@ -34,26 +37,33 @@ function State:init(bufnr)
     function(results) self:_handle_results(results) end,
     function() self:reset() end
   )
+  self.term_usercmd = Usercmd(self.job._term_bufnr)
   self.marks = Marks(self._bufnr)
   self.autocmd = Autocmd(self._bufnr)
+  self.usercmd = Usercmd(self._bufnr)
   self.diagnostics = Diagnostics(self._bufnr, self._job_info.test_file_name)
   self.identifiers = Identifiers(self._bufnr)
 end
 
+-- clear buffer state
 function State:reset()
   self._invalidated = true
   self._warn_notified = false
+  self.term_usercmd:reset()
   self.job:reset()
   self.marks:reset()
   self.autocmd:reset()
+  self.usercmd:reset()
   self.diagnostics:reset()
   self.identifiers:reset()
 end
 
+-- invalidate the buffer when modified
 function State:on_modified_set()
   self._invalidated = utils.is_modified(self._bufnr)
 end
 
+-- apply loading states and update identifiers if needed ahead of results
 function State:pre_process()
   self._warn_notified = false
   if self._invalidated then
@@ -63,8 +73,8 @@ function State:pre_process()
     self.identifiers:update()
   end
 
-  -- set initial "loading" states for all identifiers that are not known to be skipped
   for _, identifier in pairs(self.identifiers:get()) do
+    -- set initial "loading" states for all identifiers that are not known to be skipped
     if identifier.status ~= "pending" then
       identifier.status = "loading"
     end
@@ -73,8 +83,9 @@ function State:pre_process()
   end
 end
 
----@param assertion ClownshowJestAssertion
----@return ClownshowIdentifier?
+-- associates a jest assertion to an identifier
+---@param assertion ClownshowJestAssertion jest assertion
+---@return ClownshowIdentifier? identifier matched identifier
 function State:_get_result_identifier(assertion)
   local valid_location, location = pcall(function() return assertion.location.line - 1 end)
   if valid_location then
@@ -100,9 +111,10 @@ function State:_get_result_identifier(assertion)
   end
 end
 
----@param results ClownshowJestResult[]
+-- handle jest test results
+---@param results ClownshowJestResult[] jest test results
 function State:_handle_results(results)
-  -- if processing has not yet been run, we cannot apply Jest results as there may be line mismatch
+  -- if processing has not yet been run, we cannot apply jest results as there may be line mismatch
   -- this will happen when a non-test buffer triggers jest watch to rerun a test
   if self._invalidated then
     if not self._warn_notified then

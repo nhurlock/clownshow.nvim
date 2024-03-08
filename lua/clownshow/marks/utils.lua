@@ -5,16 +5,17 @@ local M = {}
 
 ---@alias ClownshowMarkPartial { [0]: string, [1]: string }
 
----@param identifier ClownshowIdentifier
----@param status? ClownshowIdentifierStatus
----@param force? boolean
----@return ClownshowMarkPartial?
+-- creates a mark partial for an identifier based on its status
+---@param identifier ClownshowIdentifier identifier to create mark for
+---@param status? ClownshowIdentifierStatus status to get stats for
+---@param force? boolean force create a mark
+---@return ClownshowMarkPartial? partial mark info
 function M.status_mark(identifier, status, force)
   local _status = status or identifier.status
   local stat = identifier:get_stat(_status)
   if stat == 0 and _status ~= "loading" and force ~= true then return end
 
-  local config = Config.get()
+  local config = Config.opts
   ---@type ClownshowStatusOptions
   local mark_options = config[_status] or config.skipped
 

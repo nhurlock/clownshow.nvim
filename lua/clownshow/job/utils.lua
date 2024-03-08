@@ -7,10 +7,10 @@ local M = {}
 ---@field project_root string
 ---@field command string
 
----@param bufnr number
----@return ClownshowJobInfo?
+---@param bufnr number buffer to get job info for
+---@return ClownshowJobInfo? job_info job info for the buffer
 function M.get_job_info(bufnr)
-  local config = Config.get()
+  local config = Config.opts
   local path = vim.api.nvim_buf_get_name(bufnr)
 
   local project_root = config.project_root({ bufnr = bufnr, path = path })

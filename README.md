@@ -9,6 +9,9 @@
   - updates on dependent file changes
 - `:JestWatchStop` - stops Jest for the current buffer
   - automatically stops the job on `BufUnload`
+- `:JestWatchToggle` - toggles between start/stop states for the current buffer
+- `:JestWatchLog` - open the Jest output log window for the current buffer
+- `:JestWatchLogToggle` - toggles the Jest output log window for the current buffer
 
 Multiple files can be watched at the same time, simply run the `JestWatch` command on each
 
@@ -32,18 +35,30 @@ Install with your package manager:
   ```
 
 ## Configuration
-Initialize using `setup` with the default options:
+See full configuration options in the [docs](./doc/clownshow.txt).<br>
+Initialize using `setup` with the default options (you don't need to supply these values):
 ``` lua
 require("clownshow").setup({
   mode = "inline", -- "inline" or "above"
   show_icon = true,
   show_text = false,
+  project_root = function()
+    return vim.fn.fnamemodify(".", ":p")
+  end,
   jest_command = function(opts)
     local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
     return vim.fn.fnamemodify(cmd_path, ':p')
   end,
-  project_root = function()
-    return vim.fn.fnamemodify(".", ":p")
+  create_output_win = function()
+    local win = vim.api.nvim_get_current_win()
+    vim.cmd("vsplit")
+    local output_win = vim.api.nvim_get_current_win()
+    vim.wo[output_win].number = false
+    vim.wo[output_win].cursorline = false
+    vim.wo[output_win].relativenumber = false
+    vim.wo[output_win].signcolumn = "yes:1" -- for some padding
+    vim.fn.win_gotoid(win)
+    return output_win
   end,
   passed = {
     icon = "✓",

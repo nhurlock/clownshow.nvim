@@ -14,6 +14,8 @@ local identifier_utils = require("clownshow.identifiers.utils")
 ---@overload fun(bufnr: number): ClownshowIdentifierParser
 local Parser = Object("ClownshowIdentifierParser")
 
+-- creates a parser for the buffer
+---@param bufnr number buffer to create parser for
 function Parser:init(bufnr)
   self._bufnr = bufnr
   self._file_type = utils.get_filetype(bufnr)
@@ -31,7 +33,8 @@ function Parser:_set_only()
   end
 end
 
----@param identifier ClownshowIdentifierProps
+-- attempts to add a new identifier
+---@param identifier ClownshowIdentifierProps properties used to create new identifier
 function Parser:_add_identifier(identifier)
   local ref = self.identifier_info[identifier.line]
   if identifier.type ~= "root" and self._each["root"] then
@@ -50,6 +53,7 @@ function Parser:_add_identifier(identifier)
       self:_set_only()
     end
 
+    -- apply parent-level information
     identifier.has_only = false
     identifier.parent = self._curr_parent
     self.identifier_info[identifier.line] = identifier
@@ -57,18 +61,22 @@ function Parser:_add_identifier(identifier)
     ref.parent = self._curr_parent
   end
 
+  -- root elements will contain children, set curr_parent for next identifiers to mark them as children to this identifier
   if identifier.type == "root" and not self._curr_parent then
     self._curr_parent = identifier.line
   end
 end
 
----@param identifier ClownshowIdentifierProps
----@param curr_each? ClownshowIdentifierProps
+-- handle identifier tables
+---@param identifier ClownshowIdentifierProps properties to create new table identifier
+---@param curr_each? ClownshowIdentifierProps the original "each" of the same table identifier (starting info)
 function Parser:_add_each(identifier, curr_each)
   if self.identifier_info[identifier.line] then
     self.identifier_info[identifier.line].endline = identifier.endline
   end
   if not curr_each then return end
+
+  -- reset "each" for next table identifier now that this one has completed
   self._each[curr_each.type] = nil
 
   -- "identifier" will not contain accurate type, only, and status info
@@ -81,11 +89,13 @@ function Parser:_add_each(identifier, curr_each)
   self:_add_identifier(identifier)
 end
 
----@param identifier ClownshowIdentifierProps
+-- identifier table found, need to wait for the "bottom" of the table, hold
+---@param identifier ClownshowIdentifierProps properties to create new table identifier
 function Parser:_set_each(identifier)
   self._each[identifier.type] = identifier
 end
 
+-- re-parse the buffer and re-create identifiers
 function Parser:_refresh()
   self.identifier_info = {}
   self._root_has_only = false
@@ -146,12 +156,14 @@ function Parser:_refresh()
   end
 end
 
----@return ClownshowIdentifierProps[]
+-- refresh the state and get the parsed identifiers
+---@return ClownshowIdentifierProps[] identifiers parsed identifiers
 function Parser:get_identifiers()
   self:_refresh()
   return vim.tbl_values(self.identifier_info)
 end
 
+-- clear parser state
 function Parser:reset()
   self._root_has_only = false
   self._curr_parent = nil

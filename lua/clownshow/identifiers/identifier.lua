@@ -40,8 +40,9 @@ local Object = require("clownshow.object")
 ---@overload fun(props: ClownshowIdentifierProps, get_parent?: ClownshowIdentifierGetParent): ClownshowIdentifier
 local Identifier = Object("ClownshowIdentifier")
 
----@param props ClownshowIdentifierProps
----@param get_parent? ClownshowIdentifierGetParent
+-- creates an identifier
+---@param props ClownshowIdentifierProps identifier properties
+---@param get_parent? ClownshowIdentifierGetParent function used to get current identifier's parent identifier
 function Identifier:init(props, get_parent)
   self.line = props.line
   self.col = props.col
@@ -56,7 +57,8 @@ function Identifier:init(props, get_parent)
   self:reset_stats()
 end
 
----@param status ClownshowIdentifierStatus
+-- increments a stat value for self and all parents
+---@param status ClownshowIdentifierStatus identifier status to increment
 function Identifier:_inc_stat(status)
   self._stats[status] = (self._stats[status] or 0) + 1
 
@@ -66,26 +68,26 @@ function Identifier:_inc_stat(status)
   end
 end
 
----@return number, number, number?
-function Identifier:get_pos()
-  return self.line, self.col, self.endline
-end
-
----@return ClownshowIdentifier?
+-- gets the parent identifier
+---@return ClownshowIdentifier? parent parent identifier
 function Identifier:get_parent()
   return self._get_parent(self)
 end
 
----@param status? ClownshowIdentifierStatus
+-- gets the stat count for given status
+---@param status? ClownshowIdentifierStatus status to get the stat of
+---@return number count the stat count for the status
 function Identifier:get_stat(status)
   return self._stats[status or self.status] or 0
 end
 
+-- resets the stats
 function Identifier:reset_stats()
   self._stats = { passed = 0, failed = 0, pending = 0 }
 end
 
----@param status ClownshowIdentifierStatus
+-- applies a status to identifier and increments the stat value
+---@param status ClownshowIdentifierStatus status to apply
 function Identifier:apply_status(status)
   self.status = status
   self:_inc_stat(status)

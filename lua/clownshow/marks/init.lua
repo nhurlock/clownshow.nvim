@@ -7,13 +7,13 @@ local mark_utils = require("clownshow.marks.utils")
 ---@overload fun(bufnr: number): ClownshowMarks
 local Marks = Object("ClownshowMarks")
 
----@param bufnr number
+---@param bufnr number buffer to apply marks to
 function Marks:init(bufnr)
   self._bufnr = bufnr
 end
 
----@param identifier ClownshowIdentifier
----@param partials ClownshowMarkPartial[]
+---@param identifier ClownshowIdentifier identifier to mark
+---@param partials ClownshowMarkPartial[] partial marks to render
 function Marks:_from(identifier, partials)
   -- when there is nothing to render, make sure we don't have an old mark
   if #partials == 0 then
@@ -24,13 +24,13 @@ function Marks:_from(identifier, partials)
     return
   end
 
-  local config = Config.get()
-  local line, col, _ = identifier:get_pos()
+  local config = Config.opts
+  local line = identifier.line
+  local col = identifier.col
   ---@type vim.api.keyset.set_extmark
   local extmark_opts = {
     id = identifier.mark,
     invalidate = true,
-    undo_restore = false,
     priority = 100
   }
 
@@ -56,17 +56,16 @@ function Marks:_from(identifier, partials)
   identifier.mark = vim.api.nvim_buf_set_extmark(self._bufnr, Config.ns, line, col, extmark_opts)
 end
 
----@param identifier ClownshowIdentifier
----@param status? ClownshowIdentifierStatus
----@param force? boolean
+-- marks an identifier with a status
+---@param identifier ClownshowIdentifier identifier to mark
+---@param status? ClownshowIdentifierStatus status mark to apply
+---@param force? boolean force a mark to be applied
 function Marks:status(identifier, status, force)
-  local mark = mark_utils.status_mark(identifier, status, force)
-  if mark then
-    self:_from(identifier, { mark })
-  end
+  self:_from(identifier, { mark_utils.status_mark(identifier, status, force) })
 end
 
----@param identifier ClownshowIdentifier
+-- marks an identifier with its stats
+---@param identifier ClownshowIdentifier identifier to mark
 function Marks:stats(identifier)
   local partials = vim.tbl_map(function(status)
     return mark_utils.status_mark(identifier, status)
@@ -74,6 +73,7 @@ function Marks:stats(identifier)
   self:_from(identifier, vim.tbl_filter(function(p) return p ~= nil end, partials))
 end
 
+-- clear the marks for the buffer
 function Marks:reset()
   vim.api.nvim_buf_clear_namespace(self._bufnr, Config.ns, 0, -1)
 end

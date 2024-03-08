@@ -7,14 +7,36 @@ COMMANDS                                                  *clownshow-commands*
 
 Run Jest watch on the current buffer.
 Test results will update on save or when dependent files are updated.
+See |clownshow.start| for programatic use
 >
   :JestWatch
 <
 
 Stop Jest watch on the current buffer.
 This will happen automatically on a `BufUnload` event.
+See |clownshow.stop| for programatic use
 >
   :JestWatchStop
+<
+
+Starts Jest watch on the current buffer when not running.
+Stops Jest watch on the current buffer when running.
+See |clownshow.start| and |clownshow.stop| for programatic use
+>
+  :JestWatchToggle
+<
+
+Opens the Jest watch live output window for the current buffer.
+See |clownshow.show_log| and |clownshow.log_bufnr| for programatic use
+>
+  :JestWatchLog
+<
+
+Opens the Jest watch live output window for the current buffer when closed.
+Closes the Jest watch live output window for the current buffer when open.
+See |clownshow.show_log| and |clownshow.log_bufnr| for programatic use
+>
+  :JestWatchLogToggle
 <
 
 ==============================================================================
@@ -39,28 +61,75 @@ overrides the configuration provided in |clownshow.setup|
       - {opts}:   see |clownshow-configuration|
 
 
+                                                             *clownshow.start*
+clownshow.start({bufnr}) ~
+
+Starts Jest watch for the {bufnr}.
+
+    Parameters: ~
+      - {bufnr}:   bufnr for the test file to run, defaults to the current
+
+                                                              *clownshow.stop*
+clownshow.stop({bufnr}) ~
+
+Stops Jest watch for the {bufnr}.
+
+    Parameters: ~
+      - {bufnr}:   bufnr for the test file to stop, defaults to the current
+
+                                                         *clownshow.log_bufnr*
+clownshow.log_bufnr({bufnr}) ~
+
+Returns the bufnr for the Jest log output for the {bufnr}.
+
+    Parameters: ~
+      - {bufnr}:   bufnr for the test file to get log bufnr, defaults to the
+                      current
+
+                                                          *clownshow.show_log*
+clownshow.show_log({bufnr}, {winid}) ~
+
+Opens the Jest log output window for the {bufnr}.
+
+    Parameters: ~
+      - {bufnr}:   bufnr for the test file to show log window, defaults to the
+                      current
+      - {winid}:   winid to open the log bufnr in, defaults to creating a window
+                      returned by the `create_output_win` config option.
+                      see |clownshow-output-win|
+
+
 ==============================================================================
 CONFIGURATION                                        *clownshow-configuration*
 
-- `mode`:         <string> mark display mode, either 'inline' or 'above'
-                    - 'inline' places marks in virtual text inline with test definition
-                    - 'above' places marks in a virtual line above test definition
-- `jest_command`: <function> - fun(opts):string - custom function returning a string to run as
-                    the jest command
-                    see |clownshow-jest-command|
-- `project_root`: <function> - fun(opts):string - custom function returning a string to use as
-                    project root for the jest command
-                    see |clownshow-project-root|
-- `show_icon`:    <boolean> show or hide the 'icon' for marks
-- `show_text`:    <boolean> show or hide the 'text' for marks
-- `passed`:       <table> configuration for 'passed' test marks
-                    see |clownshow-mark-configuration|
-- `failed`:       <table> configuration for 'failed' test marks
-                    see |clownshow-mark-configuration|
-- `skipped`:      <table> configuration for 'skipped' test marks
-                    see |clownshow-mark-configuration|
-- `loading`:      <table> configuration for 'loading' test marks
-                    see |clownshow-mark-configuration|
+- `mode`:              <string> mark display mode, either 'inline' or 'above'
+                         - 'inline' places marks in virtual text inline with
+                                test definition
+                         - 'above' places marks in a virtual line above test
+                                definition
+- `project_root`:      <function> - fun(opts):string - custom function returning a
+                         string to use as project root for the Jest command
+                         see |clownshow-project-root|
+- `jest_command`:      <function> - fun(opts):string - custom function returning
+                         a string to run as the jest comand
+                         see |clownshow-jest-command|
+- `results_fn`:        <function> - fun(results):string - function to do
+                         processing on the current Jest results json output
+                         see |clownshow-results-fn|
+- `create_output_win`: <function> - fun(results):string - function that
+                         returns a window id to be used for displaying the
+                         Jest log output
+                         see |clownshow-output-win|
+- `show_icon`:         <boolean> show or hide the 'icon' for marks
+- `show_text`:         <boolean> show or hide the 'text' for marks
+- `passed`:            <table> configuration for 'passed' test marks
+                         see |clownshow-mark-configuration|
+- `failed`:            <table> configuration for 'failed' test marks
+                         see |clownshow-mark-configuration|
+- `skipped`:           <table> configuration for 'skipped' test marks
+                         see |clownshow-mark-configuration|
+- `loading`:           <table> configuration for 'loading' test marks
+                         see |clownshow-mark-configuration|
 
                                                 *clownshow-mark-configuration*
 - `icon`:         <string> display an icon
@@ -73,12 +142,23 @@ CONFIGURATION                                        *clownshow-configuration*
     mode = "inline",
     show_icon = true,
     show_text = false,
+    project_root = function()
+      return vim.fn.fnamemodify(".", ":p")
+    end,
     jest_command = function(opts)
       local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
       return vim.fn.fnamemodify(cmd_path, ':p')
     end,
-    project_root = function()
-      return vim.fn.fnamemodify(".", ":p")
+    create_output_win = function()
+      local win = vim.api.nvim_get_current_win()
+      vim.cmd("vsplit")
+      local output_win = vim.api.nvim_get_current_win()
+      vim.wo[output_win].number = false
+      vim.wo[output_win].cursorline = false
+      vim.wo[output_win].relativenumber = false
+      vim.wo[output_win].signcolumn = "yes:1"
+      vim.fn.win_gotoid(win)
+      return output_win
     end,
     passed = {
       icon = "✓",
@@ -103,26 +183,43 @@ CONFIGURATION                                        *clownshow-configuration*
   }
 <
 
+                                                      *clownshow-project-root*
+By default, the project root will be the current working directory.
+
+You may override the default root by supplying a `project_root` option, which
+should be a <function> that returns a <string>.
+
+The <function> receives a single <table> argument, {opts} which contains the
+following properties:
+  `bufnr`: the buffer number for the test file
+  `path`: the full test file path
+
+Example usage for `project_root`:
+>lua
+ {
+   ...other options,
+   project_root = function(opts)
+     -- do something with `opts` here
+     return "/my/custom/root"
+   end
+ }
+<
+
                                                       *clownshow-jest-command*
 By default, the jest command will attempt to find the first match for a
 `node_modules/.bin/jest` file off of the current test file's path.
 
-The following arguments are supplied to the `jest` cli and cannot be
-overridden:
-  `--watch`: to run in watch mode
-  `--silent`: to suppress any unwanted extra output
-  `--forceExit`: to force exit once complete
+The following arguments are supplied to the `jest` cli and should not be
+overridden (they are applied post-command):
   `--json`: used to parse result output for display
-  `--testLocationInResults`: used to apply result output to a specific location
-  `--no-colors`: avoid non-standard text
-  `--coverage=false`: forces coverage off even if it was set on in the jest
-        command, as it is not reported on in the buffer at the moment
+  `--watch`: to run in watch mode, updates on changes
+  `--testLocationInResults`: used to apply results to a specific location
 
 You may override the default `jest` command by supplying a `jest_command`
 option, which should be a <function> that returns a <string>.
 
-The <function> receives a single argument, {opts} which contains the following
-properties:
+The <function> receives a single <table> argument, {opts} which contains the
+following properties:
   `bufnr`: the buffer number for the test file
   `path`: the full test file path
   `root`: the `project_root` value, see |clownshow-project-root|
@@ -134,33 +231,27 @@ Example usage for `jest_command`:
 >lua
  {
    ...other options,
-   jest_command: function(opts)
+   jest_command = function(opts)
      -- do something with `opts` here
      return "npm run test --"
    end
  }
 <
 
-                                                      *clownshow-project-root*
-By default, the project root will be the current working directory.
+                                                        *clownshow-results-fn*
+By supplying a `results_fn` during configuration, this function will be called
+each time Jest json results output has been parsed successfully.
 
-You may override the default root by supplying a `project_root` option, which
-should be a <function> that returns a <string>.
+See the jest documentation on the json structure here:
+https://jestjs.io/docs/configuration#testresultsprocessor-string
 
-The <function> receives a single argument, {opts} which contains the following
-properties:
-  `bufnr`: the buffer number for the test file
-  `path`: the full test file path
+                                                        *clownshow-output-win*
+Supply a `create_output_win` that will return a window id to use for
+displaying the live Jest watch output.
 
-Example usage for `project_root`:
->lua
- {
-   ...other options,
-   project_root: function(opts)
-     -- do something with `opts` here
-     return "/my/custom/root"
-   end
- }
-<
+By default, a `vsplit` will be created with `number`, `relativenumber`, and
+`cursorline` set to `false` for a minimal appearance.
+The window will not be focused.
+
 
 vim:tw=78:ts=8:expandtab:ft=help:norl:
