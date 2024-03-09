@@ -1,6 +1,21 @@
 local Object = require("clownshow.object")
 local Config = require("clownshow.config")
 
+local allowed_jest_term_inputs = { "w", "c", "t", "q", "\r", "\x1b" }
+local ignored_jest_input_strings = {
+  "run all tests",
+  "changed files",
+  "run only failed tests",
+  "filter by a filename regex pattern"
+}
+
+---@param line string line input from jest watch
+---@return boolean result if the line should be ignored
+local function is_ignored_jest_input(line)
+  local match = string.match(line, "Press.+to (.*)%.")
+  return match ~= nil and vim.tbl_contains(ignored_jest_input_strings, match)
+end
+
 ---@class ClownshowJestAssertion
 ---@field status ClownshowIdentifierStatus
 ---@field location { line: number }
@@ -46,12 +61,35 @@ function Job:init(bufnr, command, working_dir, on_results, on_exit)
   self._on_exit = on_exit
 end
 
--- create the new terminal buffer and a pipe-to channel
+-- create the new terminal buffer and a pipe-to channel for filtering
 function Job:_init_terminal()
+  local term_allow_all = false
   local bufnr = vim.api.nvim_create_buf(false, false)
   vim.bo[bufnr].filetype = "clownshow-output"
   self._term_bufnr = bufnr
-  self._term_chan = vim.api.nvim_open_term(self._term_bufnr, {})
+  self._term_chan = vim.api.nvim_open_term(self._term_bufnr, {
+    on_input = function(_, _, _, data)
+      if self.job and term_allow_all or vim.tbl_contains(allowed_jest_term_inputs, data) then
+        -- 't' command in jest watch will allow filtering test names, allow user to enter any char for name
+        if data == "t" then term_allow_all = true end
+        -- if a return or escape is input, we can always fallback to input restriction
+        if data == "\r" or data == "\x1b" then term_allow_all = false end
+
+        -- special case with 'c' which usually would clear filters in jest watch
+        -- we want to allow clearing of a 't'-entered test name, without clearing the file filter
+        -- so we send a 't' instead and a return to clear the 't'-entered test name, leaving the file name filter
+        if not term_allow_all and data == "c" then
+          vim.api.nvim_chan_send(self.job, "\x74")
+          vim.schedule(function()
+            vim.api.nvim_chan_send(self.job, "\x0d")
+          end)
+        else
+          -- all other input is allowed
+          vim.api.nvim_chan_send(self.job, data)
+        end
+      end
+    end
+  })
 end
 
 -- handle processing of the jest watch output
@@ -75,7 +113,7 @@ function Job:_process_output(data)
       if status_ok then
         results = res
       end
-    else
+    elseif not is_ignored_jest_input(line) then
       -- only apply newlines if there is already output and never newline-postfix
       -- trailing content will always be considered an incomplete line
       -- example:

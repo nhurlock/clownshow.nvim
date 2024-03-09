@@ -14,6 +14,7 @@ local utils = require("clownshow.utils")
 ---@field _warn_notified boolean
 ---@field _bufnr number
 ---@field _job_info ClownshowJobInfo?
+---@field _on_exit fun(): nil
 ---@field job ClownshowJob
 ---@field term_usercmd ClownshowUsercmd
 ---@field marks ClownshowMarks
@@ -21,15 +22,17 @@ local utils = require("clownshow.utils")
 ---@field usercmd ClownshowUsercmd
 ---@field diagnostics ClownshowDiagnostics
 ---@field identifiers ClownshowIdentifiers
----@overload fun(bufnr: number): ClownshowState
+---@overload fun(bufnr: number, on_exit: fun(): nil): ClownshowState
 local State = Object("ClownshowState")
 
 ---@param bufnr number buffer to track state for
-function State:init(bufnr)
+---@param on_exit fun(): nil function to call on exit once state has been reset
+function State:init(bufnr, on_exit)
   self._invalidated = true
   self._warn_notified = false
   self._bufnr = bufnr
   self._job_info = job_utils.get_job_info(self._bufnr)
+  self._on_exit = on_exit
   self.job = Job(
     self._bufnr,
     self._job_info.command,
@@ -56,6 +59,7 @@ function State:reset()
   self.usercmd:reset()
   self.diagnostics:reset()
   self.identifiers:reset()
+  self._on_exit()
 end
 
 -- invalidate the buffer when modified
@@ -129,6 +133,15 @@ function State:_handle_results(results)
   -- clear old stats before appling new status updates
   self.identifiers:reset_stats()
 
+  -- only handle results for the active test file
+  -- this will handle a case where we may have somehow received more than just the original file's results
+  results = vim.tbl_filter(function(item)
+    return item.name == self._job_info.test_file_path
+  end, results)
+
+  ---@type table<number, boolean>
+  local updated = {}
+
   ---@type string?
   local message
   -- apply identifier states based off the test results
@@ -139,11 +152,14 @@ function State:_handle_results(results)
       if identifier then
         message = nil
         if assertion.status == "failed" then
+          updated[identifier.line] = true
           identifier:apply_status("failed")
           self.diagnostics:create(identifier, assertion.failureMessages[1])
         elseif assertion.status == "passed" then
+          updated[identifier.line] = true
           identifier:apply_status("passed")
         elseif assertion.status == "pending" then
+          updated[identifier.line] = true
           identifier:apply_status("pending")
         end
       end
@@ -157,10 +173,10 @@ function State:_handle_results(results)
     self.diagnostics:create(top_line, message)
   end
 
-  -- any identifiers that still have a "loading" status get set to skipped
+  -- any identifiers that still have not been updated get set to skipped
   -- ignore parents here as the stats mark will apply the skipped state mark
   for _, identifier in pairs(self.identifiers:get()) do
-    if identifier.status == "loading" and identifier.type == "test" then
+    if updated[identifier.line] == nil and identifier.type == "test" then
       identifier:apply_status("pending")
     end
   end

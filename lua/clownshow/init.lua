@@ -17,7 +17,7 @@ end
 ---@param bufnr number buffer to attach to
 local function attach_to_buffer(bufnr)
   if _active[bufnr] then return end
-  local state = State(bufnr)
+  local state = State(bufnr, function() _active[bufnr] = nil end)
   _active[bufnr] = state
   local config = Config.opts
 

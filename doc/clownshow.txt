@@ -89,7 +89,9 @@ Returns the bufnr for the Jest log output for the {bufnr}.
                                                           *clownshow.show_log*
 clownshow.show_log({bufnr}, {winid}) ~
 
-Opens the Jest log output window for the {bufnr}.
+Opens the Jest log output window for the {bufnr}. The log output supports a
+subset of the usual Jest watch commands such as filtering by test name, quiting
+the watch mode, and re-running the tests.
 
     Parameters: ~
       - {bufnr}:   bufnr for the test file to show log window, defaults to the

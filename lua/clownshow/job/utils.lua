@@ -4,6 +4,7 @@ local M = {}
 
 ---@class ClownshowJobInfo
 ---@field test_file_name string
+---@field test_file_path string
 ---@field project_root string
 ---@field command string
 
@@ -21,6 +22,7 @@ function M.get_job_info(bufnr)
 
   return {
     test_file_name = vim.fn.fnamemodify(path, ":t"),
+    test_file_path = vim.fn.fnamemodify(path, ":p"),
     project_root = project_root,
     command = jest_cmd .. " " .. Config.jest_args .. " " .. path
   }
