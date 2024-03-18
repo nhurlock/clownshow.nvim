@@ -145,10 +145,11 @@ CONFIGURATION                                        *clownshow-configuration*
     show_icon = true,
     show_text = false,
     project_root = function()
-      return vim.fn.fnamemodify(".", ":p")
+      local cmd_path = vim.fn.findfile("node_modules/.bin/jest", ".;")
+      return vim.fn.fnamemodify(cmd_path, ':p:h:h:h')
     end,
-    jest_command = function(opts)
-      local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
+    jest_command = function()
+      local cmd_path = vim.fn.findfile("node_modules/.bin/jest", ".;")
       return vim.fn.fnamemodify(cmd_path, ':p')
     end,
     create_output_win = function()
@@ -186,7 +187,8 @@ CONFIGURATION                                        *clownshow-configuration*
 <
 
                                                       *clownshow-project-root*
-By default, the project root will be the current working directory.
+By default, the project root will be the same directory that `jest` was
+found to be installed in.
 
 You may override the default root by supplying a `project_root` option, which
 should be a <function> that returns a <string>.

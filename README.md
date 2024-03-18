@@ -43,10 +43,11 @@ require("clownshow").setup({
   show_icon = true,
   show_text = false,
   project_root = function()
-    return vim.fn.fnamemodify(".", ":p")
+    local cmd_path = vim.fn.findfile("node_modules/.bin/jest", ".;")
+    return vim.fn.fnamemodify(cmd_path, ':p:h:h:h')
   end,
-  jest_command = function(opts)
-    local cmd_path = vim.fn.findfile("node_modules/.bin/jest", vim.fn.fnamemodify(opts.path, ":p:h") .. ";")
+  jest_command = function()
+    local cmd_path = vim.fn.findfile("node_modules/.bin/jest", ".;")
     return vim.fn.fnamemodify(cmd_path, ':p')
   end,
   create_output_win = function()
