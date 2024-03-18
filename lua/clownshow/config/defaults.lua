@@ -19,7 +19,7 @@
 ---@field project_root? fun(opts: ClownshowProjectRootOptions): string
 ---@field jest_command? fun(opts: ClownshowJestCommandOptions): string
 ---@field results_fn? fun(results: ClownshowJestResults): nil do something with the json jest output
----@field create_output_win fun(): number create a window to display jest output in, return a window id
+---@field create_output_win? fun(): number create a window to display jest output in, return a window id
 ---defaults to:
 ---```lua
 ---{
