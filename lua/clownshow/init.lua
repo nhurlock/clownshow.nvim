@@ -34,9 +34,17 @@ local function attach_to_buffer(bufnr)
   state.usercmd:create({ "JestWatchStop", "JestWatchToggle" }, M.stop)
   state.usercmd:create("JestWatchLog", M.show_log)
 
-  state.autocmd:create("BufModifiedSet", function() state:on_modified_set() end)
-  state.autocmd:create("BufWritePost", function() state:pre_process() end)
-  state.autocmd:create("BufUnload", reset_buffer)
+  state.autocmd:create("BufWritePost", nil, function() state:pre_process() end)
+  state.autocmd:create("BufUnload", nil, reset_buffer)
+  if vim.fn.has("nvim-0.13") == 1 then
+    state.autocmd:create("OptionSet", "modified", function(opts)
+      if opts.buf == bufnr then
+        state:on_modified_set()
+      end
+    end)
+  else
+    state.autocmd:create("BufModifiedSet", nil, function() state:on_modified_set() end)
+  end
 
   state.term_usercmd:create("JestWatchLogToggle", log_toggle)
 

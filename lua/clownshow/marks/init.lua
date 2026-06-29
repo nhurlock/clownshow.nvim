@@ -30,13 +30,10 @@ function Marks:_from(identifier, partials)
   ---@type vim.api.keyset.set_extmark
   local extmark_opts = {
     id = identifier.mark,
-    priority = 100
+    priority = 100,
+    undo_restore = true,
+    invalidate = true
   }
-
-  if vim.fn.has("nvim-0.10") == 1 then
-    extmark_opts.undo_restore = true
-    extmark_opts.invalidate = true
-  end
 
   -- "above" will be placed "inline" on line 0 otherwise it would be hidden
   if config.mode == "above" and line ~= 0 then

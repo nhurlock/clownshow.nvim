@@ -13,11 +13,13 @@ end
 
 -- creates an autocmd for the buffer
 ---@param event string[]|string events for autocmd
----@param callback fun(): nil callback for processing autocmd
-function Autocmd:create(event, callback)
+---@param pattern string|nil pattern to filter events
+---@param callback fun(args: vim.api.keyset.create_autocmd.callback_args): boolean? callback for processing autocmd
+function Autocmd:create(event, pattern, callback)
   vim.api.nvim_create_autocmd(event, {
     group = Config.group,
-    buffer = self._bufnr,
+    pattern = pattern,
+    buffer = (not pattern and self._bufnr) or nil,
     callback = callback
   })
 end
